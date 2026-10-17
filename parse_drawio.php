@@ -10,7 +10,7 @@ define("DEVICE_TYPE_INFO_SOCKET", 2);
 define("DEVICE_TYPE_SW", 3);
 
 // ケーブル長の係数、TODO: 修正
-define("CABLE_COEFF", 1);
+define("CABLE_COEFF", 0.1);
 
 $filename = $argv[1];
 
@@ -282,7 +282,7 @@ foreach($xml->diagram as $page){
                     "floor" => $page["name"],
                     "start_device" => $start_device_name,
                     "end_device" => $end_device_name,
-                    "length" => (int)round($length),
+                    "length" => round($length * CABLE_COEFF, 1),
                 ];
                 echo "cable found: $start_device_name - $end_device_name" . PHP_EOL;
             }
