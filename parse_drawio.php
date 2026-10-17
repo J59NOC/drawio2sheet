@@ -276,15 +276,17 @@ foreach($xml->diagram as $page){
                 elseif(strcmp($end_device_name, $start_device_name) > 0){
                     [$start_device_name, $end_device_name] = [$end_device_name, $start_device_name];
                 }
-                // ケーブル情報を追加
-                $cables[] = [
-                    "id" => $id,
-                    "floor" => $page["name"],
-                    "start_device" => $start_device_name,
-                    "end_device" => $end_device_name,
-                    "length" => round($length * CABLE_COEFF, 1),
-                ];
-                echo "cable found: $start_device_name - $end_device_name" . PHP_EOL;
+                // 有効なケーブルのみ情報を追加（例示など両端がどこにもつながっていないケーブル）
+                if($start_distance >= 0 || $end_distance >= 0){
+                    $cables[] = [
+                        "id" => $id,
+                        "floor" => $page["name"],
+                        "start_device" => $start_device_name,
+                        "end_device" => $end_device_name,
+                        "length" => round($length * CABLE_COEFF, 1),
+                    ];
+                    echo "cable found: $start_device_name - $end_device_name" . PHP_EOL;
+                }
             }
             break;
         }
