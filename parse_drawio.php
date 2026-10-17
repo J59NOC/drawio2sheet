@@ -204,7 +204,7 @@ foreach($xml->diagram as $page){
                     foreach($object->mxGeometry->Array->mxPoint as $point){
                         $current = [
                             "x" => (float)$point["x"],
-                            "y" => (float)$point["x"],
+                            "y" => (float)$point["y"],
                         ];
                         $length += sqrt(pow($prev["x"] - $current["x"], 2) + pow($prev["y"] - $current["y"], 2));
                         $prev = $current;
