@@ -1,5 +1,13 @@
 <?php
 
+define("AP_RADIUS", 7);
+define("INFO_SOCKET_RADIUS", 6);
+
+define("OBJECT_TYPE_AP", 1);
+define("OBJECT_TYPE_SW", 2);
+define("OBJECT_TYPE_INFO_SOCKET", 3);
+
+
 $filename = $argv[1];
 
 if(!file_exists($filename)){
@@ -39,7 +47,7 @@ foreach($xml->diagram as $page){
 
     // APレイヤのグループ化されたオブジェクトの親情報
     // key: そのオブジェクトのid, value: "arrow", "ellipse", "array"
-    $ap_groups = [];
+    $devices = [];
 
     // ページ内のオブジェクトを順次処理
     // ドキュメントがあるわけではないが、おそらく下記の実装とみて問題なさそう
@@ -57,30 +65,46 @@ foreach($xml->diagram as $page){
             continue;
         }
 
+        // id, parent_idを取得（そのままだとSimpleXMLのオブジェクトのためstringにキャスト）
+        $id = (string)$object["id"];
+        $parent_id = (string)$object["parent"];
+
         switch($layer["name"]){
+        case "情報コンセント":
+            if($parent_id === $layer["id"] && preg_match("/^ellipse;/", $object["style"]) && preg_match("/^(<[^\/]+>)+(.+?)(<\/[^\/]+>)+$/", $object["value"], $m)){
+                $devices[$id] = [
+                    "type" => OBJECT_TYPE_INFO_SOCKET,
+                    "text" => $m[2],
+                    "ellipse" => [
+                        "x" => round((string)$object->mxGeometry["x"]) + INFO_SOCKET_RADIUS,
+                        "y" => round((string)$object->mxGeometry["y"]) + INFO_SOCKET_RADIUS,
+                    ],
+                ];
+            }
+            break;
         
         case "AP":
-            $id = (string)$object["id"];
-            $parent_id = (string)$object["parent"];
             // レイヤーに直接配置されたグループオブジェクト
             if($parent_id === $layer["id"] && preg_match("/^group(;|$)/", $object["style"])){
-                $ap_groups[$id] = [
+                $devices[$id] = [
+                    "type" => OBJECT_TYPE_AP,
                     "arrow" => null,
                     "ellipse" => null,
                     "text" => null,
+                    "position" => null,
                     "offset" => [ $id => [ "x" => round((string)$object->mxGeometry["x"]), "y" => round((string)$object->mxGeometry["y"]) ] ],
                 ];
             }
             
             // それ以外のグループオブジェクト
             if(preg_match("/^group(;|$)/", $object["style"])){
-                // 2段目は isset($ap_groups[$parent_id]) で確認できるため計算量は増えてしまうが3段目以降と処理を共通化
-                foreach($ap_groups as $key => $group){
+                // 2段目は isset($devices[$parent_id]) で確認できるため計算量は増えてしまうが3段目以降と処理を共通化
+                foreach($devices as $key => $group){
                     // groupごとに、当グループの親グループを含むか確認、含む場合は座標を計算してoffsetに追加
                     if(isset($group["offset"][$parent_id])){
                         $x = $group["offset"][$parent_id]["x"] + round((string)($object->mxGeometry["x"]?? 0));
                         $y = $group["offset"][$parent_id]["y"] + round((string)($object->mxGeometry["y"]?? 0));
-                        $ap_groups[$key]["offset"][$id] = [ "x" => $x, "y" => $y ];
+                        $devices[$key]["offset"][$id] = [ "x" => $x, "y" => $y ];
                         break;
                     }
                 }
@@ -88,57 +112,56 @@ foreach($xml->diagram as $page){
 
             // groupに含まれるAPの円の中心を求める
             elseif(preg_match("/^ellipse;/", $object["style"])){
-                foreach($ap_groups as $key => $group){
+                foreach($devices as $key => $group){
                     if(isset($group["offset"][$parent_id])){
                         // 同じグループに2つ以上の円がある場合は無効
                         if($group["ellipse"] !== null){
-                            $ap_groups[$key]["ellipse"] = false;
+                            $devices[$key]["ellipse"] = false;
                             break;
                         }
+                        // オブジェクトの存在を記録
+                        $devices[$key]["ellipse"] = true; 
                         // オブジェクトの中心点を保存
                         $x = $group["offset"][$parent_id]["x"] + round($object->mxGeometry["width"]/2);
                         $y = $group["offset"][$parent_id]["y"] + round($object->mxGeometry["height"]/2);
-                        $ap_groups[$key]["ellipse"] = [ "x" => $x, "y" => $y ];
+                        $devices[$key]["position"] = [
+                            "x" => $group["offset"][$parent_id]["x"] + AP_RADIUS,
+                            "y" => $group["offset"][$parent_id]["y"] + AP_RADIUS,
+                        ];
                     }
                 }
             }
-            // groupに含まれるAPの矢印の中心を求める
+            // groupに含まれるAPの矢印の存在を確認
             elseif(preg_match("/;shape=mxgraph\.arrows2\.arrow;/", $object["style"])){
-                foreach($ap_groups as $key => $group){
+                foreach($devices as $key => $group){
                     if(isset($group["offset"][$parent_id])){
                         // 同じグループに2つ以上の円がある場合は無効
                         if($group["arrow"] !== null){
-                            $ap_groups[$key]["arrow"] = false;
+                            $devices[$key]["arrow"] = false;
                             break;
                         }
-                        // オブジェクトの中心点を保存
-                        $x = $group["offset"][$parent_id]["x"] + round($object->mxGeometry["width"]/2);
-                        $y = $group["offset"][$parent_id]["y"] + round($object->mxGeometry["height"]/2);
-                        $ap_groups[$key]["arrow"] = [ "x" => $x, "y" => $y ];
+                        // オブジェクトの存在を記録
+                        $devices[$key]["arrow"] = true; 
                     }
                 }
             }
             // groupに含まれるtextを取得する
             elseif(preg_match("/^text;/", $object["style"])){
-                foreach($ap_groups as $key => $group){
+                foreach($devices as $key => $group){
                     if(isset($group["offset"][$parent_id])){
                         // 同じグループに2つ以上のtextがある場合は無効
                         if($group["text"] !== null){
-                            $ap_groups[$key]["text"] = false;
+                            $devices[$key]["text"] = false;
                             break;
                         }
                         // オブジェクトの中心点を保存
-                        $ap_groups[$key]["text"] = (string)$object["value"];
+                        $devices[$key]["text"] = (string)$object["value"];
                     }
                 }
             }
             break;
         
-        case "ケーブル":
-
-            break;
-        
-        case "情報コンセント":
+        case "ケーブル配線":
 
             break;
         
@@ -149,6 +172,8 @@ foreach($xml->diagram as $page){
     }
 
 }
+
+var_dump($devices);
 
 // 現在のメモリ使用量（バイト）
 $currentBytes = memory_get_usage();
@@ -161,5 +186,5 @@ echo 'ピーク時のメモリ使用量: ' . round($peakBytes / 1024 / 1024, 2) 
 
 
 function add_ap_group($id, $parent_id){
-    global $ap_groups;
+    global $devices;
 }
