@@ -71,11 +71,11 @@ foreach($xml->diagram as $page){
 
         switch($layer["name"]){
         case "情報コンセント":
-            if($parent_id === $layer["id"] && preg_match("/^ellipse;/", $object["style"]) && preg_match("/^(<[^\/]+>)+(.+?)(<\/[^\/]+>)+$/", $object["value"], $m)){
+            if($parent_id === $layer["id"] && preg_match("/^ellipse;/", $object["style"]) && preg_match("/^(<[^\/]+>)*([!-~]+?)(<\/[^\/]+>)*$/", $object["value"], $m)){
                 $devices[$id] = [
                     "type" => OBJECT_TYPE_INFO_SOCKET,
                     "text" => $m[2],
-                    "ellipse" => [
+                    "position" => [
                         "x" => round((string)$object->mxGeometry["x"]) + INFO_SOCKET_RADIUS,
                         "y" => round((string)$object->mxGeometry["y"]) + INFO_SOCKET_RADIUS,
                     ],
@@ -161,11 +161,24 @@ foreach($xml->diagram as $page){
             }
             break;
         
-        case "ケーブル配線":
-
+        case "L2/L3機器":
+            if($parent_id === $layer["id"] && preg_match("/^rounded=1;/", $object["style"]) && preg_match("/^(<[^\/]+>)*([!-~]+?)(<\/[^\/]+>)*$/", $object["value"], $m)){
+                $devices[$id] = [
+                    "type" => OBJECT_TYPE_SW,
+                    "text" => $m[2],
+                    "position" => [
+                        "x" => round((string)$object->mxGeometry["x"]),
+                        "y" => round((string)$object->mxGeometry["y"]),
+                    ],
+                    "size" => [
+                        "width"  => round((string)$object->mxGeometry["width"]),
+                        "height" => round((string)$object->mxGeometry["height"]),
+                    ]
+                ];
+            }
             break;
         
-        case "L2/L3機器":
+        case "ケーブル配線":
 
             break;
         }
